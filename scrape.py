@@ -54,6 +54,35 @@ def sanitize_api_response(response_text):
 
     return valid_json_objects
 
+def load_failed_articles(directory):
+    failed_file = os.path.join(directory, "failed.json")
+    if os.path.exists(failed_file):
+        with open(failed_file, "r") as f:
+            return json.load(f)
+    else:
+        return []
+
+def save_failed_articles(directory, failed_articles):
+    with open(f"{directory}/failed.json", "w") as f:
+        json.dump(failed_articles, f)
+
+def create_rss_feed(feed_path, articles):
+    rss = ET.Element("rss", {"xmlns:g": "http://base.google.com/ns/1.0", "version": "2.0"})
+    channel = ET.SubElement(rss, "channel")
+    ET.SubElement(channel, "title").text = "Filtered Hacker News Articles"
+    ET.SubElement(channel, "link").text = "https://news.ycombinator.com/"
+
+    for article in articles:
+        item = ET.SubElement(channel, "item")
+        ET.SubElement(item, "title").text = article["title"]
+        ET.SubElement(item, "link").text = article["url"]
+        if "summary" in article:
+            ET.SubElement(item, "description").text = article["summary"]
+
+    rss_tree = ET.ElementTree(rss)
+    with open(feed_path, "wb") as f:
+        rss_tree.write(f, encoding="utf-8", xml_declaration=True)
+
 def filter_articles_using_similarity(articles, run_directory):
     tags = [
         "retrocomputing",
@@ -66,14 +95,7 @@ def filter_articles_using_similarity(articles, run_directory):
     tag_sentence = ', '.join(tags)
     threshold = FILTER_THRESHOLD
     filtered_articles = []
-    failed_articles = []
-
-    failed_file = os.path.join(run_directory, "failed.json")
-
-    # Load existing failed articles
-    if os.path.exists(failed_file):
-        with open(failed_file, "r") as f:
-            failed_articles = json.load(f)
+    failed_articles = load_failed_articles(run_directory)
 
     for article in articles:
         title = article["title"]
@@ -94,10 +116,12 @@ def filter_articles_using_similarity(articles, run_directory):
         if score >= threshold:
             article["score"] = score
             filtered_articles.append(article)
+        else:
+            if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
+                failed_articles.append(article)
 
     # Save the updated failed articles
-    with open(failed_file, "w") as f:
-        json.dump(failed_articles, f)
+    save_failed_articles(run_directory, failed_articles)
 
     return filtered_articles
 
@@ -126,24 +150,10 @@ def save_results(directory, results):
     with open(f"{directory}/results.json", "w") as f:
         json.dump(results, f)
 
-    # Create an RSS feed from the results
-    rss = ET.Element("rss", {"xmlns:g": "http://base.google.com/ns/1.0", "version": "2.0"})
-    channel = ET.SubElement(rss, "channel")
-    ET.SubElement(channel, "title").text = "Filtered Hacker News Articles"
-    ET.SubElement(channel, "link").text = "https://news.ycombinator.com/"
-    ET.SubElement(channel, "description").text = "Filtered Hacker News articles based on specified keywords."
-
-    for result in results:
-        item = ET.SubElement(channel, "item")
-        ET.SubElement(item, "title").text = result["title"]
-        ET.SubElement(item, "link").text = result["url"]
-        if "summary" in result:
-            ET.SubElement(item, "description").text = result["summary"]
-
-    # Save the RSS feed as an XML file
-    rss_tree = ET.ElementTree(rss)
-    with open(f"{directory}/results.rss", "wb") as f:
-        rss_tree.write(f, encoding="utf-8", xml_declaration=True)
+    # Create RSS feeds for both successful and failed articles
+    create_rss_feed(f"{directory}/results.rss", results)
+    failed_articles = load_failed_articles(directory)
+    create_rss_feed(f"{directory}/failed.rss", failed_articles)
 
 def extract_content_from_url(url):
     response = requests.get(url)
