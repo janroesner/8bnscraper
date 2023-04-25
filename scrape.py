@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import webbrowser
 import subprocess
 
-FILTER_THRESHOLD = 0.65
+FILTER_THRESHOLD = 0.60
 NUMBER_OF_PAGES = 10
 
 # Replace with your OpenAI API key
@@ -51,45 +51,15 @@ def filter_articles_using_similarity(articles):
     tags = [
     "retrocomputing",
     "retrogaming",
-    "commodore",
-    "atari",
-    "sinclair",
-    "arcade",
     "80s",
     "70s",
     "8-bit",
     "16-bit",
     "microcomputers",
-    "apple",
-    "TRS-80",
-    "amiga",
-    "ZX Spectrum",
-    "BBC Micro",
-    "MSX",
-    "Texas Instruments",
-    "Tandy",
-    "Acorn",
-    "game consoles",
-    "Atari 2600",
-    "Atari 5200",
-    "Atari 7800",
-    "Intellivision",
-    "Colecovision",
-    "Odyssey",
-    "DIY machines",
-    "breadboard electronics",
     "programming languages",
-    "assembly",
     "BASIC",
-    "COBOL",
-    "FORTRAN",
-    "Pascal",
-    "LISP",
-    "Logo",
-    "Ada",
-    "Modula-2",
-    "Smalltalk",
 ]
+
     tag_sentence = ', '.join(tags)
     threshold = FILTER_THRESHOLD
     filtered_articles = []
