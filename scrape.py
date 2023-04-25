@@ -18,7 +18,7 @@ import openai_util
 import openai.error
 
 FILTER_THRESHOLD = 0.65
-NUMBER_OF_PAGES = 10
+NUMBER_OF_PAGES = 2
 
 httpd = None
 
@@ -66,7 +66,7 @@ def save_failed_articles(directory, failed_articles):
     with open(f"{directory}/failed.json", "w") as f:
         json.dump(failed_articles, f)
 
-def create_rss_feed(feed_path, articles):
+def create_rss_feed(feed_path, articles, category):
     rss = ET.Element("rss", {"xmlns:g": "http://base.google.com/ns/1.0", "version": "2.0"})
     channel = ET.SubElement(rss, "channel")
     ET.SubElement(channel, "title").text = "Filtered Hacker News Articles"
@@ -76,6 +76,7 @@ def create_rss_feed(feed_path, articles):
         item = ET.SubElement(channel, "item")
         ET.SubElement(item, "title").text = article["title"]
         ET.SubElement(item, "link").text = article["url"]
+        ET.SubElement(item, "category").text = category
         if "summary" in article:
             ET.SubElement(item, "description").text = article["summary"]
 
@@ -151,9 +152,9 @@ def save_results(directory, results):
         json.dump(results, f)
 
     # Create RSS feeds for both successful and failed articles
-    create_rss_feed(f"{directory}/results.rss", results)
+    create_rss_feed(f"{directory}/results.rss", results, "results")
     failed_articles = load_failed_articles(directory)
-    create_rss_feed(f"{directory}/failed.rss", failed_articles)
+    create_rss_feed(f"{directory}/failed.rss", failed_articles, "unscored")
 
 def extract_content_from_url(url):
     response = requests.get(url)
