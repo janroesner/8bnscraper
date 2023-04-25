@@ -15,7 +15,7 @@ import http.server
 import socketserver
 import threading
 
-FILTER_THRESHOLD = 0.60
+FILTER_THRESHOLD = 0.65
 NUMBER_OF_PAGES = 10
 
 httpd = None
@@ -56,13 +56,9 @@ def filter_articles_using_similarity(articles):
     tags = [
     "retrocomputing",
     "retrogaming",
-    "80s",
-    "70s",
     "8-bit",
     "16-bit",
     "microcomputers",
-    "programming languages",
-    "BASIC",
 ]
 
     tag_sentence = ', '.join(tags)
@@ -143,6 +139,39 @@ def extract_content_from_url(url):
         return content
     return ""
 
+def update_rss_with_summaries(run_directory, results):
+    rss_path = os.path.join(run_directory, "results.rss")
+    if not os.path.exists(rss_path):
+        print("RSS file not found. Skipping RSS update.")
+        return
+
+    # Load the existing RSS file
+    with open(rss_path, "r") as f:
+        rss_data = f.read()
+
+    # Parse the RSS data
+    root = ET.fromstring(rss_data)
+
+    for entry in results:
+        url = entry["url"]
+        if "summary" in entry:
+            summary = entry["summary"]
+
+            # Find the matching item in the RSS feed
+            for item in root.iter("item"):
+                if item.find("link").text == url:
+                    # Update the description element with the new summary
+                    description = item.find("description")
+                    if description is None:
+                        description = ET.SubElement(item, "description")
+                    description.text = summary
+                    break
+
+    # Save the updated RSS file
+    updated_rss_data = ET.tostring(root, encoding="utf-8", method="xml").decode("utf-8")
+    with open(rss_path, "w") as f:
+        f.write(updated_rss_data)
+
 def summarize_content(content):
     prompt = f"Please summarize the following content in no more than 10 sentences:\n\n{content}\n\nSummary:"
     response = openai.Completion.create(
@@ -179,6 +208,9 @@ def summarize_articles(run_directory):
     # Save the updated results with summaries
     with open(results_file, "w") as f:
         json.dump(results, f)
+
+    # Update the RSS file with the new summaries
+    update_rss_with_summaries(run_directory, results)
 
 def open_rss_in_browser(run_directory):
     rss_path = os.path.abspath(os.path.join(run_directory, "results.rss"))
@@ -247,18 +279,6 @@ def main():
         else:
             print("No run directories found.")
             return
-    # if args.open:
-    #     run_directory = find_newest_run_directory()
-    #     if run_directory:
-    #         rss_path = os.path.join(run_directory, "results.rss")
-    #         if os.path.exists(rss_path):
-    #             t = threading.Thread(target=serve_rss, args=(run_directory,))
-    #             t.start()
-    #             webbrowser.get("open -a /Applications/Google\ Chrome.app %s").open(f"http://localhost:4000")
-    #         else:
-    #             print("RSS file not found. Make sure to run with -s option first to generate the RSS file.")
-    #     else:
-    #         print("No run directories found.")
 
     if args.summarize:
         run_directory = find_newest_run_directory()
