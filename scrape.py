@@ -89,8 +89,11 @@ def filter_articles_using_similarity(articles, run_directory):
         "retrocomputing",
         "retrogaming",
         "8-bit",
-        "16-bit",
-        "microcomputers",
+        "commodore",
+        "atari",
+        "sinclair",
+        "apple",
+        "msx",
     ]
 
     tag_sentence = ', '.join(tags)
@@ -109,7 +112,7 @@ def filter_articles_using_similarity(articles, run_directory):
         if match:
             score = float(match.group())
         else:
-            print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'.")
+            print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'. Score text was: {score_text}")
             if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
                 failed_articles.append(article)
             continue
@@ -123,14 +126,6 @@ def filter_articles_using_similarity(articles, run_directory):
 
     # Save the updated failed articles
     save_failed_articles(run_directory, failed_articles)
-
-    return filtered_articles
-
-def filter_articles(articles):
-    prompt = f"Filter the following articles to include only those that most probably belong to at least one of the following topics[retrocomputing, retrogaming, commodore, atari, sinclair, arcade, 80s].\n\n{json.dumps(articles)}\n\nFiltered articles:"
-    response = openai.Completion.create(engine="text-davinci-002", prompt=prompt, max_tokens=1024, n=1, stop=None, temperature=0.5)
-    filtered_articles = sanitize_api_response(response.choices[0].text)
-    print("filtering done")
 
     return filtered_articles
 
@@ -248,34 +243,37 @@ def summarize_articles(run_directory):
     # Update the RSS file with the new summaries
     update_rss_with_summaries(run_directory, results)
 
-def open_rss_in_browser(run_directory):
-    rss_path = os.path.abspath(os.path.join(run_directory, "results.rss"))
-    chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-
-    if not os.path.isfile(rss_path):
-        print(f"RSS file not found at '{rss_path}'")
-        return
-
-    if not os.path.isfile(chrome_path):
-        print(f"Google Chrome not found at '{chrome_path}'. Please ensure it is installed and the path is correct.")
-        return
-
-    try:
-        subprocess.run([chrome_path, f"file://{rss_path}"])
-    except Exception as e:
-        print(f"Error opening RSS file in Google Chrome: {e}")
-
 def serve_rss(run_directory):
     global httpd
+
     class RSSRequestHandler(http.server.SimpleHTTPRequestHandler):
         def do_GET(self):
             if self.path == "/":
-                self.path = os.path.join(run_directory, "results.rss")
+                # Load the results RSS
+                results_rss_path = os.path.join(run_directory, "results.rss")
+                with open(results_rss_path, "r", encoding="utf-8") as f:
+                    results_rss_tree = ET.parse(f)
+                    results_rss_channel = results_rss_tree.find("channel")
+
+                # Load the failed RSS
+                failed_rss_path = os.path.join(run_directory, "failed.rss")
+                with open(failed_rss_path, "r", encoding="utf-8") as f:
+                    failed_rss_tree = ET.parse(f)
+                    failed_rss_channel = failed_rss_tree.find("channel")
+
+                # Create a new RSS feed that combines the results and failed feeds
+                combined_rss = ET.Element("rss", {"version": "2.0"})
+                combined_rss.append(results_rss_channel)
+
+                for item in failed_rss_channel.findall("item"):
+                    combined_rss_channel = combined_rss.find("channel")
+                    combined_rss_channel.append(item)
+
+                # Stream the combined RSS to the client
                 self.send_response(200)
                 self.send_header("Content-type", "application/rss+xml")
                 self.end_headers()
-                with open(self.path, "rb") as f:
-                    self.wfile.write(f.read())
+                self.wfile.write(ET.tostring(combined_rss, encoding="utf-8"))
             else:
                 self.send_error(404, "File not found")
 
