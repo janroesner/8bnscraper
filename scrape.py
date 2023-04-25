@@ -11,9 +11,14 @@ import time
 import xml.etree.ElementTree as ET
 import webbrowser
 import subprocess
+import http.server
+import socketserver
+import threading
 
 FILTER_THRESHOLD = 0.60
 NUMBER_OF_PAGES = 10
+
+httpd = None
 
 # Replace with your OpenAI API key
 openai.api_key = os.environ.get("OPENAI_API_KEY")
@@ -192,6 +197,33 @@ def open_rss_in_browser(run_directory):
     except Exception as e:
         print(f"Error opening RSS file in Google Chrome: {e}")
 
+def serve_rss(run_directory):
+    global httpd
+    class RSSRequestHandler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/":
+                self.path = os.path.join(run_directory, "results.rss")
+                self.send_response(200)
+                self.send_header("Content-type", "application/rss+xml")
+                self.end_headers()
+                with open(self.path, "rb") as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_error(404, "File not found")
+
+    port = 4000
+    handler = RSSRequestHandler
+
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        print(f"Serving RSS on port {port}")
+        httpd.serve_forever()
+
+def shutdown_server():
+    global httpd
+    if httpd:
+        print("Shutting down previous server instance...")
+        httpd.shutdown()
+
 def main():
     parser = argparse.ArgumentParser(description="Scrape and filter Hacker News articles.")
     parser.add_argument("-n", "--new", action="store_true", help="Create a new run directory.")
@@ -202,10 +234,31 @@ def main():
     if args.open:
         run_directory = find_newest_run_directory()
         if run_directory:
-            open_rss_in_browser(run_directory)
+            rss_path = os.path.join(run_directory, "results.rss")
+            if os.path.exists(rss_path):
+                shutdown_server()
+                t = threading.Thread(target=serve_rss, args=(run_directory,))
+                t.start()
+                webbrowser.get("open -a /Applications/Google\ Chrome.app %s").open(f"http://localhost:4000")
+                return
+            else:
+                print("RSS file not found. Make sure to run with -s option first to generate the RSS file.")
+                return
         else:
             print("No run directories found.")
-        return
+            return
+    # if args.open:
+    #     run_directory = find_newest_run_directory()
+    #     if run_directory:
+    #         rss_path = os.path.join(run_directory, "results.rss")
+    #         if os.path.exists(rss_path):
+    #             t = threading.Thread(target=serve_rss, args=(run_directory,))
+    #             t.start()
+    #             webbrowser.get("open -a /Applications/Google\ Chrome.app %s").open(f"http://localhost:4000")
+    #         else:
+    #             print("RSS file not found. Make sure to run with -s option first to generate the RSS file.")
+    #     else:
+    #         print("No run directories found.")
 
     if args.summarize:
         run_directory = find_newest_run_directory()
