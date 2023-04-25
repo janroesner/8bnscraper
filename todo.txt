@@ -1,0 +1,4 @@
+- fix rss generation and add summary to rss
+- save the skipped articles uniq into a separate file and open this as rss in a second tab in chrome
+- create a markdown file in our format
+- have the script spit out a help
