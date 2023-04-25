@@ -14,6 +14,8 @@ import subprocess
 import http.server
 import socketserver
 import threading
+import openai_util
+import openai.error
 
 FILTER_THRESHOLD = 0.65
 NUMBER_OF_PAGES = 10
@@ -52,18 +54,26 @@ def sanitize_api_response(response_text):
 
     return valid_json_objects
 
-def filter_articles_using_similarity(articles):
+def filter_articles_using_similarity(articles, run_directory):
     tags = [
-    "retrocomputing",
-    "retrogaming",
-    "8-bit",
-    "16-bit",
-    "microcomputers",
-]
+        "retrocomputing",
+        "retrogaming",
+        "8-bit",
+        "16-bit",
+        "microcomputers",
+    ]
 
     tag_sentence = ', '.join(tags)
     threshold = FILTER_THRESHOLD
     filtered_articles = []
+    failed_articles = []
+
+    failed_file = os.path.join(run_directory, "failed.json")
+
+    # Load existing failed articles
+    if os.path.exists(failed_file):
+        with open(failed_file, "r") as f:
+            failed_articles = json.load(f)
 
     for article in articles:
         title = article["title"]
@@ -76,12 +86,18 @@ def filter_articles_using_similarity(articles):
         if match:
             score = float(match.group())
         else:
-            print(f"Warning: No score found for article '{title}'. Skipping this article.")
+            print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'.")
+            if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
+                failed_articles.append(article)
             continue
 
         if score >= threshold:
             article["score"] = score
             filtered_articles.append(article)
+
+    # Save the updated failed articles
+    with open(failed_file, "w") as f:
+        json.dump(failed_articles, f)
 
     return filtered_articles
 
@@ -173,16 +189,25 @@ def update_rss_with_summaries(run_directory, results):
         f.write(updated_rss_data)
 
 def summarize_content(content):
-    prompt = f"Please summarize the following content in no more than 10 sentences:\n\n{content}\n\nSummary:"
-    response = openai.Completion.create(
-        engine="text-davinci-002",
-        prompt=prompt,
-        max_tokens=200,
-        n=1,
-        stop=None,
-        temperature=0.5
-    )
-    summary = response.choices[0].text.strip()
+    max_tokens = 1500
+    max_prompt_tokens = 4096 - max_tokens  # Maximum tokens allowed for prompt
+
+    # Ensure the content is within the allowed token limit
+    content_truncated = openai_util.truncate_text_to_token_limit(content, max_prompt_tokens)
+
+    prompt = f"Please summarize the following content in no more than 10 sentences:\n\n{content_truncated}\n\nSummary:"
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-002",
+            prompt=prompt,
+            max_tokens=max_tokens,
+            n=1,
+            stop=None,
+            temperature=0.5
+        )
+        summary = response.choices[0].text.strip()
+    except openai.error.InvalidRequestError:
+        summary = "Summary generation failed"
     return summary
 
 def summarize_articles(run_directory):
@@ -316,7 +341,7 @@ def main():
         filtered_articles = []
         for article in articles:
             if not any(result["url"] == article["url"] for result in existing_results):
-                filtered_article = filter_articles_using_similarity([article])
+                filtered_article = filter_articles_using_similarity([article], run_directory)
                 if filtered_article:
                     filtered_articles.extend(filtered_article)
 
