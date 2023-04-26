@@ -85,39 +85,63 @@ def create_rss_feed(feed_path, articles, category):
         rss_tree.write(f, encoding="utf-8", xml_declaration=True)
 
 def filter_articles_using_similarity(articles, run_directory):
-    tags = [
-        "retrocomputing",
-        "vintage computing",
-        "80s computers",
-        "8bit computer",
+    tag_sets = [
+        [
+            "retrocomputing",
+            "vintage computing",
+            "80s computers",
+            "8bit computer",
+        ],
+        [
+            "commodore",
+            "atari",
+            "sinclair",
+            "amstrad",
+            "msx",
+        ],
+        [
+            "nintendo",
+            "nes",
+            "snes",
+            "gameboy",
+        ],
+        [
+            "basic",
+            "assembly",
+            "forth",
+        ]
     ]
 
-    tag_sentence = ', '.join(tags)
     threshold = FILTER_THRESHOLD
     filtered_articles = []
     failed_articles = load_failed_articles(run_directory)
+    matches = [0] * len(tag_sets)
 
     for article in articles:
-        title = article["title"]
-        prompt = f"Given the following topics: {tag_sentence}. Please rate the relevance of the article \"{title}\" to these topics on a scale from 0 to 1."
-        response = openai.Completion.create(engine="text-davinci-002", prompt=prompt, max_tokens=10, n=1, stop=None, temperature=0.5)
+        for i, tags in enumerate(tag_sets):
+            tag_sentence = ', '.join(tags)
+            title = article["title"]
+            prompt = f"Given the following topics: {tag_sentence}. Please rate the relevance of the article \"{title}\" to these topics on a scale from 0 to 1."
+            response = openai.Completion.create(engine="text-davinci-002", prompt=prompt, max_tokens=10, n=1, stop=None, temperature=0.5)
 
-        # Extract the float value from the response
-        score_text = response.choices[0].text.strip()
-        if "article is not relevant" in score_text:
-            continue
-        else:
-            match = re.search(r"[-+]?\d*\.\d+|\d+", score_text)
-            if match:
-                score = float(match.group())
-                if score >= threshold:
-                    article["score"] = score
-                    filtered_articles.append(article)
-            else:
-                print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'. Score text was: {score_text}")
-                if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
-                    failed_articles.append(article)
+            # Extract the float value from the response
+            score_text = response.choices[0].text.strip()
+            if "article is not relevant" in score_text:
                 continue
+            else:
+                match = re.search(r"[-+]?\d*\.\d+|\d+", score_text)
+                if match:
+                    score = float(match.group())
+                    if score >= threshold:
+                        article["score"] = score
+                        filtered_articles.append(article)
+                        matches[i] += 1
+                        break
+                else:
+                    print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'. Score text was: {score_text}")
+                    if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
+                        failed_articles.append(article)
+                    continue
 
     # Save the updated failed articles
     save_failed_articles(run_directory, failed_articles)
