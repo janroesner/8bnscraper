@@ -87,13 +87,9 @@ def create_rss_feed(feed_path, articles, category):
 def filter_articles_using_similarity(articles, run_directory):
     tags = [
         "retrocomputing",
-        "retrogaming",
-        "8-bit",
-        "commodore",
-        "atari",
-        "sinclair",
-        "apple",
-        "msx",
+        "vintage computing",
+        "80s computers",
+        "8bit computer",
     ]
 
     tag_sentence = ', '.join(tags)
@@ -108,21 +104,20 @@ def filter_articles_using_similarity(articles, run_directory):
 
         # Extract the float value from the response
         score_text = response.choices[0].text.strip()
-        match = re.search(r"[-+]?\d*\.\d+|\d+", score_text)
-        if match:
-            score = float(match.group())
-        else:
-            print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'. Score text was: {score_text}")
-            if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
-                failed_articles.append(article)
+        if "article is not relevant" in score_text:
             continue
-
-        if score >= threshold:
-            article["score"] = score
-            filtered_articles.append(article)
         else:
-            if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
-                failed_articles.append(article)
+            match = re.search(r"[-+]?\d*\.\d+|\d+", score_text)
+            if match:
+                score = float(match.group())
+                if score >= threshold:
+                    article["score"] = score
+                    filtered_articles.append(article)
+            else:
+                print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'. Score text was: {score_text}")
+                if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
+                    failed_articles.append(article)
+                continue
 
     # Save the updated failed articles
     save_failed_articles(run_directory, failed_articles)
