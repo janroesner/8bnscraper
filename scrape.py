@@ -171,7 +171,12 @@ def save_results(directory, results):
     create_rss_feed(f"{directory}/failed.rss", failed_articles, "unscored")
 
 def extract_content_from_url(url):
-    response = requests.get(url)
+    try:
+        response = requests.get(url)
+    except requests.exceptions.MissingSchema:
+        print(f"Error: Invalid URL '{url}'. Skipping this URL.")
+        return ""
+    
     soup = BeautifulSoup(response.text, "html.parser")
 
     body = soup.find("body") or soup.find("main")
