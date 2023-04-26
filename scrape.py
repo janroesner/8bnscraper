@@ -328,12 +328,21 @@ def main():
         run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         run_directory = f"data/run_{run_timestamp}"
         os.makedirs(run_directory, exist_ok=True)
+        known_articles = []
     else:
         run_directory = find_newest_run_directory()
         if not run_directory:
             run_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             run_directory = f"data/run_{run_timestamp}"
             os.makedirs(run_directory, exist_ok=True)
+            known_articles = []
+        else:
+            known_articles_path = os.path.join(run_directory, "known.json")
+            if os.path.exists(known_articles_path):
+                with open(known_articles_path, "r") as f:
+                    known_articles = json.load(f)
+            else:
+                known_articles = []
 
     scrape_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     scrape_directory = f"{run_directory}/scrape_{scrape_timestamp}"
@@ -350,9 +359,11 @@ def main():
         filtered_articles = []
         for article in articles:
             if not any(result["url"] == article["url"] for result in existing_results):
-                filtered_article = filter_articles_using_similarity([article], run_directory)
-                if filtered_article:
-                    filtered_articles.extend(filtered_article)
+                if not any(known_article["url"] == article["url"] for known_article in known_articles):
+                    filtered_article = filter_articles_using_similarity([article], run_directory)
+                    if filtered_article:
+                        filtered_articles.extend(filtered_article)
+                    known_articles.append({"title": article["title"], "url": article["url"]})
 
         all_articles.extend(filtered_articles)
 
@@ -363,8 +374,12 @@ def main():
 
     unique_articles.sort(key=lambda article: article["score"], reverse=True)
 
-    # Merge existing_results and unique_articles, and sort the combined list by score in descending order
+    # Merge existing_results and unique_articles, and sort the combined list by
     combined_results = sorted(existing_results + unique_articles, key=lambda article: article["score"], reverse=True)
+
+    known_articles_path = os.path.join(run_directory, "known.json")
+    with open(known_articles_path, "w") as f:
+        json.dump(known_articles, f)
 
     save_results(run_directory, existing_results + unique_articles)
     print(f"Scraping and filtering complete. Check the '{run_directory}' directory for results.")
