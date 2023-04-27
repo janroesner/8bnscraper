@@ -1,3 +1,1 @@
 - store some meaningful globals and output them before exit
-- create a markdown file in our format
-- have the script spit out a help
