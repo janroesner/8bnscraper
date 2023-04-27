@@ -18,7 +18,7 @@ import openai_util
 import openai.error
 
 FILTER_THRESHOLD = 0.65
-NUMBER_OF_PAGES = 12
+NUMBER_OF_PAGES = 20
 
 httpd = None
 
