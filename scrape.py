@@ -313,6 +313,7 @@ def main():
     parser.add_argument("-n", "--new", action="store_true", help="Create a new run directory.")
     parser.add_argument("-s", "--summarize", action="store_true", help="Summarize the articles in the newest run directory.")
     parser.add_argument("-o", "--open", action="store_true", help="Open the RSS feed in the newest run directory.")
+    parser.add_argument("-m", "--markdown", action="store_true", help="Generate Markdown file with articles in the newest run directory.")
     args = parser.parse_args()
 
     if args.open:
@@ -336,6 +337,36 @@ def main():
         run_directory = find_newest_run_directory()
         if run_directory:
             summarize_articles(run_directory)
+        else:
+            print("No run directories found.")
+        return
+
+    if args.markdown:
+        run_directory = find_newest_run_directory()
+        if run_directory:
+            results_path = os.path.join(run_directory, "results.json")
+            failed_path = os.path.join(run_directory, "failed.json")
+            articles = []
+            with open(results_path, "r") as f:
+                articles.extend(json.load(f))
+            with open(failed_path, "r") as f:
+                articles.extend(json.load(f))
+            articles.sort(key=lambda article: article["score"] if "score" in article else 0, reverse=True)
+            md_file_path = os.path.join(run_directory, "8bitnews.md")
+            with open(md_file_path, "w") as f:
+                f.write("## Intro\n\nHello 8bit'ers,\n\n## News\n\n")
+                f.write("## Learn\n\n## Fun\n\n## Outro\n\n\n")
+                for article in articles:
+                    title = article["title"]
+                    url = article["url"]
+                    try:
+                        description = article["summary"]
+                    except KeyError:
+                        description = ""
+                    # description = article["summary"]
+                    tags = article.get("tags", ["8bitnews", "retrocomputing", "retrogaming", "8bit"])
+                    f.write(f"### {title}\n{url}\n\n{description}\n\n**_Social_**\n\nTitle\n\nLink\n\n#8bitnews #retrocomputing #retrogaming #8bit\n\n___\n")
+            print(f"Markdown file created at {md_file_path}")
         else:
             print("No run directories found.")
         return
