@@ -18,7 +18,7 @@ import openai_util
 import openai.error
 
 FILTER_THRESHOLD = 0.65
-NUMBER_OF_PAGES = 20
+NUMBER_OF_PAGES = 12
 
 httpd = None
 
@@ -93,13 +93,6 @@ def filter_articles_using_similarity(articles, run_directory):
             "8bit computer",
         ],
         [
-            "commodore",
-            "atari",
-            "sinclair",
-            "amstrad",
-            "msx",
-        ],
-        [
             "nintendo",
             "nes",
             "snes",
@@ -119,10 +112,11 @@ def filter_articles_using_similarity(articles, run_directory):
 
     for article in articles:
         for i, tags in enumerate(tag_sets):
-            tag_sentence = ', '.join(tags)
+            tag_sentence = '[' + ', '.join([f'"{tag}"' for tag in tags]) + ']'
             title = article["title"]
-            prompt = f"Given the following topics: {tag_sentence}. Please rate the relevance of the article \"{title}\" to these topics on a scale from 0 to 1."
-            response = openai.Completion.create(engine="text-davinci-002", prompt=prompt, max_tokens=10, n=1, stop=None, temperature=0.5)
+            
+            prompt = f"Given the following topics: {tag_sentence}. Please rate the relevance of the article \"{title}\" to these topics on a scale from 0 to 1. Just return the rating – no text. If you can not rate, return \"0.0\""
+            response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=10, n=1, stop=None, temperature=0.5)
 
             # Extract the float value from the response
             score_text = response.choices[0].text.strip()
