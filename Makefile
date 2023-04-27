@@ -15,6 +15,7 @@ help:
 	@echo "  summary        Summarize articles in the newest run directory"
 	@echo "  open           Open the RSS feed in the newest run directory"
 	@echo "  markdown       Generate a Markdown file from the articles in the newest run directory"
+	@echo "  cd             Change into the current data folder"
 
 # Install dependencies
 install:
@@ -39,3 +40,7 @@ open:
 # Generate Markdown file from articles in newest run directory
 markdown:
 	python scrape.py -m
+
+# Change into the latest data folder
+cd:
+	open `find data -type d -name "run_*" | sort | tail -n 1`
