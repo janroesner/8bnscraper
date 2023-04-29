@@ -132,6 +132,7 @@ def filter_articles_using_similarity(articles, run_directory):
                         matches[i] += 1
                         break
                 else:
+                    score = 0.0
                     print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'. Score text was: {score_text}")
                     if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
                         failed_articles.append(article)
@@ -140,7 +141,7 @@ def filter_articles_using_similarity(articles, run_directory):
     # Save the updated failed articles
     save_failed_articles(run_directory, failed_articles)
 
-    return filtered_articles
+    return filtered_articles, score
 
 def find_newest_run_directory():
     data_dir = "data"
@@ -409,10 +410,10 @@ def main():
         for article in articles:
             if not any(result["url"] == article["url"] for result in existing_results):
                 if not any(known_article["url"] == article["url"] for known_article in known_articles):
-                    filtered_article = filter_articles_using_similarity([article], run_directory)
+                    filtered_article, score = filter_articles_using_similarity([article], run_directory)
                     if filtered_article:
                         filtered_articles.extend(filtered_article)
-                    known_articles.append({"title": article["title"], "url": article["url"]})
+                    known_articles.append({"title": article["title"], "url": article["url"], "score": score})
 
         all_articles.extend(filtered_articles)
 
