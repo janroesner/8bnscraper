@@ -114,29 +114,49 @@ def filter_articles_using_similarity(articles, run_directory):
         for i, tags in enumerate(tag_sets):
             tag_sentence = '[' + ', '.join([f'"{tag}"' for tag in tags]) + ']'
             title = article["title"]
-            
             prompt = f"Given the following topics: {tag_sentence}. Please rate the relevance of the article \"{title}\" to these topics on a scale from 0 to 1. Just return the rating – no text. If you can not rate, return \"0.0\""
-            response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=10, n=1, stop=None, temperature=0.5)
 
-            # Extract the float value from the response
-            score_text = response.choices[0].text.strip()
-            if "article is not relevant" in score_text:
-                continue
-            else:
-                match = re.search(r"[-+]?\d*\.\d+|\d+", score_text)
-                if match:
-                    score = float(match.group())
-                    if score >= threshold:
-                        article["score"] = score
-                        filtered_articles.append(article)
-                        matches[i] += 1
-                        break
-                else:
-                    score = 0.0
-                    print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'. Score text was: {score_text}")
-                    if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
-                        failed_articles.append(article)
-                    continue
+            try: 
+              print('Sending Request...')
+              response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=10, n=1, stop=None, temperature=0.5)
+
+              # Extract the float value from the response
+              score_text = response.choices[0].text.strip()
+              if "article is not relevant" in score_text:
+                  continue
+              else:
+                  match = re.search(r"[-+]?\d*\.\d+|\d+", score_text)
+                  if match:
+                      score = float(match.group())
+                      if score >= threshold:
+                          article["score"] = score
+                          filtered_articles.append(article)
+                          matches[i] += 1
+                          break
+                  else:
+                      score = 0.0
+                      print(f"Warning: No score found for article '{title}'. Adding this article to 'failed.json'. Score text was: {score_text}")
+                      if not any(failed_article["url"] == article["url"] for failed_article in failed_articles):
+                          failed_articles.append(article)
+                      continue
+
+            except openai.error.RateLimitError as e:
+                retry_time = e.retry_after if hasattr(e, 'retry_after') else 10
+                print(f"Rate limit exceeded. Retrying in {retry_time} seconds...")
+                time.sleep(retry_time)
+                return filter_articles_using_similarity(articles, run_directory)
+
+            except openai.error.APIError as e:
+                retry_time = e.retry_after if hasattr(e, 'retry_after') else 10
+                print(f"API error occurred. Retrying in {retry_time} seconds...")
+                time.sleep(retry_time)
+                return filter_articles_using_similarity(articles, run_directory)
+         
+            except OSError as e:
+                retry_time = 5  # Adjust the retry time as needed
+                print(f"Connection error occurred: {e}. Retrying in {retry_time} seconds...")      
+                time.sleep(retry_time)
+                return filter_articles_using_similarity(articles, run_directory)
 
     # Save the updated failed articles
     save_failed_articles(run_directory, failed_articles)
